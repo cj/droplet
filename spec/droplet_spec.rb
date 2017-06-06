@@ -1,4 +1,4 @@
-require "spec_helper"
+require "./spec/spec_helper"
 require "dry-validation"
 
 FooSchema = Dry::Validation.Schema do
@@ -10,33 +10,32 @@ UserSchema = Dry::Validation.Schema do
   required(:last_name).filled
 end
 
+# Example of a custom Droplet
 class CustomDroplet < Droplet
   def validation_step(params)
-    dry_validation = @klass.(params)
+    dry_validation = klass.(params)
     errors = dry_validation.errors
 
-    if errors.any?
-      raise DropletError, errors
-    else
-      [dry_validation]
-    end
+    errors.any? ? step_error(errors) : [dry_validation]
   end
 end
 
+# Foo Droplet
 class FooDroplet < Droplet
-  step(:validation) do |foo = {}|
+  step(:validation) do |foo={}|
     dry_foo = FooSchema.(foo)
     errors  = dry_foo.errors
 
-    if errors.any?
-      raise DropletError, errors
-    end
+    step_error(errors) if errors.any?
   end
 end
 
+# User Droplet
 class UserDroplet < CustomDroplet
   step(:validation, UserSchema)
   step(:format)
+
+  private
 
   def format_step(dry_user)
     user = dry_user.to_hash
@@ -47,13 +46,17 @@ end
 
 describe Droplet do
   it "should throw validation error" do
-    foo_droplet = FooDroplet.new.run
+    error = -> { FooDroplet.new.run }.must_raise Droplet::DropletError
+    error.type.must_equal :validation
+    error.message.must_equal "Step Error"
+    error.result[:bar].must_include "is missing"
   end
 
-  describe "custom droplet" do
-    it "should have full_name" do
-      user_droplet = UserDroplet.({ first_name: 'foo', last_name: 'bar' })
-      user_droplet[:full_name].must_equal "Foo Bar"
+  describe "CustomDroplet" do
+    context "#result" do
+      subject { UserDroplet.(first_name: "foo", last_name: "bar") }
+
+      it { subject[:full_name].must_equal "Foo Bar" }
     end
   end
 end
