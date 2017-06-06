@@ -27,7 +27,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "minitest", "~> 5.0"
   spec.add_development_dependency "minitest-reporters", "~> 1.1.14"
   spec.add_development_dependency "minitest-line", "~> 0.6.3"
-  spec.add_development_dependency "reek", "~> 4.7.0"
   spec.add_development_dependency "rubocop", "~> 0.49.1"
   spec.add_development_dependency "dry-validation", "~> 0.10.7"
 end

@@ -12,8 +12,14 @@ end
 
 # Example of a custom Droplet
 class CustomDroplet < Droplet
-  def validation_step(params)
-    dry_validation = klass.(params)
+  failure do
+    puts "CustomDroplet failed"
+  end
+
+  private
+
+  def validation_step(params={})
+    dry_validation = step[:class].(params)
     errors = dry_validation.errors
 
     errors.any? ? step_error(errors) : [dry_validation]
@@ -34,6 +40,9 @@ end
 class UserDroplet < CustomDroplet
   step(:validation, UserSchema)
   step(:format)
+  failure do
+    puts "UserDroplet failed"
+  end
 
   private
 
@@ -48,7 +57,7 @@ describe Droplet do
   it "should throw validation error" do
     error = -> { FooDroplet.new.run }.must_raise Droplet::DropletError
     error.type.must_equal :validation
-    error.message.must_equal "Step Error"
+    error.message.must_match(/Step Error/)
     error.result[:bar].must_include "is missing"
   end
 
@@ -57,6 +66,12 @@ describe Droplet do
       subject { UserDroplet.(first_name: "foo", last_name: "bar") }
 
       it { subject[:full_name].must_equal "Foo Bar" }
+    end
+
+    it "should capture failures" do
+      failure = -> { begin; UserDroplet.(); rescue; end; }
+      failure.must_output(/UserDroplet failed/)
+      failure.must_output(/CustomDroplet failed/)
     end
   end
 end

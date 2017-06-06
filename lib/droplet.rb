@@ -8,10 +8,8 @@ class Droplet
 
     def initialize(type=nil, message=nil, result=nil)
       @type    = type
-      @message = message
+      @message = "#{message}: <#{type}> #{result}"
       @result  = result
-
-      super("#{message}: #{type}")
     end
   end
 
@@ -21,7 +19,7 @@ class Droplet
     # Create a new thread safe cache.
     def initialize(hash={})
       @mutex = Mutex.new
-      @hash = hash
+      @hash  = hash
     end
 
     # Make getting value from underlying hash thread safe.
@@ -36,6 +34,13 @@ class Droplet
   end
 
   class << self
+    def inherited(subclass)
+      super
+
+      store[:failures].each {|failure| subclass.store[:failures].push(failure.dup) }
+      store[:steps].each    {|step| subclass.store[:steps] << step.dup }
+    end
+
     def call(*params)
       new(*params).run
     end
@@ -44,12 +49,12 @@ class Droplet
       store[:steps] << [name, klass, block]
     end
 
-    def error(type, message, result)
-      raise DropletError.new(type, message, result)
+    def failure(&block)
+      store[:failures].push(block)
     end
 
     def store
-      @store ||= DropletCache.new(steps: [])
+      @_store ||= DropletCache.new(steps: [], failures: [])
     end
   end
 
@@ -58,55 +63,50 @@ class Droplet
   end
 
   def run
-    steps.each do |name, klass, block|
-      @klass = klass
-      @step  = name
+    self.class.store[:steps].each do |name, klass, block|
+      @_step = {name: name, class: klass}
 
       run_step(name, params, &block) || break
     end
 
-    result
+    @_result
   end
 
   def run_step(name, params, &block)
-    @result = begin
+    @_result = begin
       if block
-        instance_exec(*(result || params), &block)
+        instance_exec(*(@_result || params), &block)
       else
-        send("#{name}_step", *(result || params))
+        send("#{name}_step", *(@_result || params))
       end
     end
   end
 
   protected
 
-  attr_accessor :result, :step, :klass
-
   def store
-    @store ||= DropletCache.new
+    @_store ||= DropletCache.new
   end
 
   def params
     store[:params]
   end
 
+  def step
+    @_step || {}
+  end
+
   def step_error(result)
-    error(step, "Step Error", result)
+    error(@_step[:name], "Step Error", result)
   end
 
   def error(type, message, result)
-    klass = self.class
+    raise DropletError.new(type, message, result)
+  ensure
+    self.class.store[:failures].each do |failure|
+      instance_exec(&failure)
+    end
 
-    klass.error(type, message, result)
-
-    @result = nil
-  end
-
-  def class_store
-    self.class.store
-  end
-
-  def steps
-    class_store[:steps]
+    @_result = nil
   end
 end
