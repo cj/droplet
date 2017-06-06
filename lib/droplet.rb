@@ -37,74 +37,86 @@ class Droplet
     def inherited(subclass)
       super
 
-      store[:failures].each {|failure| subclass.store[:failures].push(failure.dup) }
-      store[:steps].each    {|step| subclass.store[:steps] << step.dup }
+      droplet[:splashes].each {|splash| subclass.droplet[:splashes].push(splash.dup) }
+      droplet[:drips].each    {|drip| subclass.droplet[:drips] << drip.dup }
     end
 
     def call(*params)
       new(*params).run
     end
 
-    def step(name, klass=nil, &block)
-      store[:steps] << [name, klass, block]
+    def drip(name, klass=nil, &block)
+      droplet[:drips] << [name, klass, block]
     end
+    alias step drip
 
-    def failure(&block)
-      store[:failures].push(block)
+    def splash(&block)
+      droplet[:splashes].push(block)
     end
+    alias failure splash
 
-    def store
-      @_store ||= DropletCache.new(steps: [], failures: [])
+    def droplet
+      @_droplet ||= DropletCache.new(drips: [], splashes: [])
     end
+    alias store droplet
   end
 
   def initialize(*params)
-    store[:params] = params
+    droplet[:params] = params
   end
 
   def run
-    self.class.store[:steps].each do |name, klass, block|
-      @_step = {name: name, class: klass}
+    self.class.droplet[:drips].each do |name, klass, block|
+      @_drip = {name: name, class: klass}
 
-      run_step(name, params, &block) || break
+      run_drip(name, params, &block) || break
     end
 
     @_result
   end
 
-  def run_step(name, params, &block)
+  def run_drip(name, params, &block)
     @_result = begin
       if block
         instance_exec(*(@_result || params), &block)
       else
-        send("#{name}_step", *(@_result || params))
+        method_name = if self.class.private_instance_methods.include?(:"#{name}_step")
+          "#{name}_step"
+        else
+          "#{name}_drip"
+        end
+
+        send(method_name, *(@_result || params))
       end
     end
   end
 
   protected
 
-  def store
-    @_store ||= DropletCache.new
+  def droplet
+    @_droplet ||= DropletCache.new
   end
+  alias store droplet
 
   def params
-    store[:params]
+    droplet[:params]
   end
 
-  def step
-    @_step || {}
+  def drip
+    @_drip || {}
   end
+  alias step drip
 
-  def step_error(result)
-    error(@_step[:name], "Step Error", result)
+  def splash(result)
+    error(@_drip[:name], "Drip Error", result)
   end
+  alias step_error splash
 
   def error(type, message, result)
     raise DropletError.new(type, message, result)
   ensure
-    self.class.store[:failures].each do |failure|
-      instance_exec(&failure)
+    self.class.droplet[:splashes].each do |splash|
+      instance_exec(&splash)
     end
 
     @_result = nil

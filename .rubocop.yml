@@ -142,3 +142,9 @@ Lint/Debugger:
 # Style preference
 Style/MethodDefParentheses:
   Enabled: false
+
+Style/EndAlignment:
+  AlignWith: variable
+
+Style/ElseAlignment:
+  AlignWith: variable

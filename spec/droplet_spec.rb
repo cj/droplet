@@ -12,41 +12,45 @@ end
 
 # Example of a custom Droplet
 class CustomDroplet < Droplet
-  failure do
+  splash do
     puts "CustomDroplet failed"
   end
 
   private
 
-  def validation_step(params={})
-    dry_validation = step[:class].(params)
-    errors = dry_validation.errors
+  def validation_drip(params={})
+    dry_validation = drip[:class].(params)
 
-    errors.any? ? step_error(errors) : [dry_validation]
+    if (errors = dry_validation.errors) && errors.any?
+      splash(errors)
+    else
+      [dry_validation]
+    end
   end
 end
 
 # Foo Droplet
 class FooDroplet < Droplet
-  step(:validation) do |foo={}|
+  drip(:validation) do |foo={}|
     dry_foo = FooSchema.(foo)
-    errors  = dry_foo.errors
 
-    step_error(errors) if errors.any?
+    if (errors = dry_foo.errors) && errors.any?
+      splash(errors)
+    end
   end
 end
 
 # User Droplet
 class UserDroplet < CustomDroplet
-  step(:validation, UserSchema)
-  step(:format)
-  failure do
+  drip(:validation, UserSchema)
+  drip(:format)
+  splash do
     puts "UserDroplet failed"
   end
 
   private
 
-  def format_step(dry_user)
+  def format_drip(dry_user)
     user = dry_user.to_hash
     user[:full_name] = "#{user[:first_name].capitalize} #{user[:last_name].capitalize}"
     user
@@ -57,7 +61,7 @@ describe Droplet do
   it "should throw validation error" do
     error = -> { FooDroplet.new.run }.must_raise Droplet::DropletError
     error.type.must_equal :validation
-    error.message.must_match(/Step Error/)
+    error.message.must_match(/Drip Error/)
     error.result[:bar].must_include "is missing"
   end
 
@@ -68,10 +72,10 @@ describe Droplet do
       it { subject[:full_name].must_equal "Foo Bar" }
     end
 
-    it "should capture failures" do
-      failure = -> { begin; UserDroplet.(); rescue; end; }
-      failure.must_output(/UserDroplet failed/)
-      failure.must_output(/CustomDroplet failed/)
+    it "should capture splashs" do
+      splash = -> { begin; UserDroplet.(); rescue; end; }
+      splash.must_output(/UserDroplet failed/)
+      splash.must_output(/CustomDroplet failed/)
     end
   end
 end
