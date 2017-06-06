@@ -22,7 +22,7 @@ class CustomDroplet < Droplet
     dry_validation = drip[:class].(params)
 
     if (errors = dry_validation.errors) && errors.any?
-      splash(errors)
+      raise splash(errors)
     else
       [dry_validation]
     end
@@ -35,7 +35,9 @@ class FooDroplet < Droplet
     dry_foo = FooSchema.(foo)
 
     if (errors = dry_foo.errors) && errors.any?
-      splash(errors)
+      raise splash(errors)
+    else
+      [dry_foo]
     end
   end
 end

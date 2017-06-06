@@ -113,7 +113,7 @@ class Droplet
   alias step_error splash
 
   def error(type, message, result)
-    raise DropletError.new(type, message, result)
+    DropletError.new(type, message, result)
   ensure
     self.class.droplet[:splashes].each do |splash|
       instance_exec(&splash)
